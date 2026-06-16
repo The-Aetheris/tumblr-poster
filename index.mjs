@@ -1,19 +1,25 @@
 #!/usr/bin/env node
 
 /**
- * Tumblr Poster CLI
- * Post images to Tumblr via official API (tumblr.js, NPF format).
- * Part of the Naaza content generation pipeline.
+ * Tumblr Poster CLI — Full NPF Support
  *
- * Usage:
- *   node index.mjs post --image <path> --caption <text> [--tags t1,t2] [--blog <name>]
- *   node index.mjs auth --check
- *   node index.mjs blogs
+ * Commands:
+ *   post photo   — Post an image with optional caption
+ *   post text    — Post a text article
+ *   post link    — Post a link
+ *   post quote   — Post a quote
+ *   auth --check — Verify credentials
+ *   blogs        — List your Tumblr blogs
+ *
+ * Post state options (all post types):
+ *   --state published|queue|draft|private
+ *   --publish-on "2026-06-20T10:00:00Z"  (requires --state queue)
+ *   --slug custom-url-slug
  */
 
-import { loadConfig } from './lib/config.mjs';
 import { getClient } from './lib/client.mjs';
-import { postPhoto } from './lib/poster.mjs';
+import { postPhoto, postText, postLink, postQuote } from './lib/poster.mjs';
+import { loadConfig } from './lib/config.mjs';
 
 // ─── Argument Parsing ───────────────────────────────────────────────
 
@@ -28,9 +34,8 @@ function parseArgs(raw) {
       const key = arg.slice(2).replace(/-([a-z])/g, (_, c) => c.toUpperCase());
       const next = raw[i + 1];
 
-      // Boolean flags (no value after them, or next is another flag)
       if (next === undefined || next.startsWith('--')) {
-        args[key] = true;
+        args[key] = true; // boolean flag
         i++;
       } else {
         args[key] = next;
@@ -48,21 +53,150 @@ function parseArgs(raw) {
 function parseTags(tagsInput) {
   if (!tagsInput) return [];
   if (Array.isArray(tagsInput)) return tagsInput;
-  return tagsInput
-    .split(',')
-    .map((t) => t.trim())
-    .filter(Boolean);
+  return tagsInput.split(',').map((t) => t.trim()).filter(Boolean);
 }
 
-// ─── Commands ───────────────────────────────────────────────────────
+function resolveBlog(args) {
+  const config = loadConfig();
+  const blog = args.blog || config.defaultBlog;
+  if (!blog) {
+    console.error('❌ No blog specified. Use --blog <name> or set TUMBLR_DEFAULT_BLOG in .env');
+    process.exit(1);
+  }
+  return blog;
+}
+
+// ─── Post Subcommands ───────────────────────────────────────────────
+
+async function cmdPostPhoto(args) {
+  if (!args.image) {
+    console.error('❌ post photo requires: --image <path>');
+    process.exit(1);
+  }
+
+  const blog = resolveBlog(args);
+  const tags = parseTags(args.tags);
+
+  console.log(`📸 Posting photo...${args.dryRun ? ' (dry run)' : ''}\n`);
+
+  const response = await postPhoto({
+    imagePath: args.image,
+    blog,
+    caption: args.caption,
+    imageCaption: args.imageCaption,
+    tags,
+    altText: args.altText,
+    state: args.state,
+    publishOn: args.publishOn,
+    slug: args.slug,
+    sourceUrl: args.sourceUrl,
+    dryRun: args.dryRun === true,
+  });
+
+  if (!args.dryRun) {
+    console.log('\n✅ Posted successfully!');
+    console.log(`   Post ID: ${response.id || '(unknown)'}`);
+  }
+}
+
+async function cmdPostText(args) {
+  if (!args.body) {
+    console.error('❌ post text requires: --body <text>');
+    console.error('   Tip: Use quotes. Separate paragraphs with \\n\\n');
+    process.exit(1);
+  }
+
+  const blog = resolveBlog(args);
+  const tags = parseTags(args.tags);
+
+  console.log(`📝 Posting text article...${args.dryRun ? ' (dry run)' : ''}\n`);
+
+  const response = await postText({
+    blog,
+    title: args.title,
+    body: args.body,
+    tags,
+    state: args.state,
+    publishOn: args.publishOn,
+    slug: args.slug,
+    sourceUrl: args.sourceUrl,
+    dryRun: args.dryRun === true,
+  });
+
+  if (!args.dryRun) {
+    console.log('\n✅ Posted successfully!');
+    console.log(`   Post ID: ${response.id || '(unknown)'}`);
+  }
+}
+
+async function cmdPostLink(args) {
+  if (!args.url) {
+    console.error('❌ post link requires: --url <url>');
+    process.exit(1);
+  }
+
+  const blog = resolveBlog(args);
+  const tags = parseTags(args.tags);
+
+  console.log(`🔗 Posting link...${args.dryRun ? ' (dry run)' : ''}\n`);
+
+  const response = await postLink({
+    blog,
+    url: args.url,
+    title: args.title,
+    description: args.description,
+    caption: args.caption,
+    tags,
+    state: args.state,
+    publishOn: args.publishOn,
+    slug: args.slug,
+    sourceUrl: args.sourceUrl,
+    dryRun: args.dryRun === true,
+  });
+
+  if (!args.dryRun) {
+    console.log('\n✅ Posted successfully!');
+    console.log(`   Post ID: ${response.id || '(unknown)'}`);
+  }
+}
+
+async function cmdPostQuote(args) {
+  if (!args.quote) {
+    console.error('❌ post quote requires: --quote <text>');
+    process.exit(1);
+  }
+
+  const blog = resolveBlog(args);
+  const tags = parseTags(args.tags);
+
+  console.log(`💬 Posting quote...${args.dryRun ? ' (dry run)' : ''}\n`);
+
+  const response = await postQuote({
+    blog,
+    quote: args.quote,
+    source: args.source,
+    tags,
+    state: args.state,
+    publishOn: args.publishOn,
+    slug: args.slug,
+    sourceUrl: args.sourceUrl,
+    dryRun: args.dryRun === true,
+  });
+
+  if (!args.dryRun) {
+    console.log('\n✅ Posted successfully!');
+    console.log(`   Post ID: ${response.id || '(unknown)'}`);
+  }
+}
+
+// ─── Other Commands ─────────────────────────────────────────────────
 
 async function cmdAuthCheck() {
   console.log('🔍 Checking Tumblr authentication...\n');
 
   try {
-    const { getClient: _, ...client } = { getClient };
-    const tumblrClient = getClient();
-    const response = await tumblrClient.userInfo();
+    const client = getClient();
+    const response = await client.userInfo();
 
     const user = response.user;
     console.log(`✅ Authenticated as: ${user.name}`);
@@ -76,7 +210,6 @@ async function cmdAuthCheck() {
         console.log(`   • ${blog.name} — ${blog.title || '(no title)'} (${blog.url})`);
       }
     }
-
     console.log('\n✨ Credentials are valid.');
   } catch (error) {
     console.error('❌ Authentication failed:', error.message);
@@ -88,8 +221,8 @@ async function cmdBlogs() {
   console.log('📋 Fetching your Tumblr blogs...\n');
 
   try {
-    const tumblrClient = getClient();
-    const response = await tumblrClient.userInfo();
+    const client = getClient();
+    const response = await client.userInfo();
 
     const blogs = response.user.blogs;
     if (blogs.length === 0) {
@@ -111,83 +244,68 @@ async function cmdBlogs() {
   }
 }
 
-async function cmdPost(args) {
-  if (!args.image) {
-    console.error('❌ Missing required flag: --image <path>');
-    console.error('   Example: node index.mjs post --image ./output/quote.png --caption "Hello"');
-    process.exit(1);
-  }
-
-  const config = loadConfig();
-  const blog = args.blog || config.defaultBlog;
-
-  if (!blog) {
-    console.error(
-      '❌ No blog specified. Use --blog <name> or set TUMBLR_DEFAULT_BLOG in .env'
-    );
-    process.exit(1);
-  }
-
-  const tags = parseTags(args.tags);
-  const dryRun = args.dryRun === true;
-
-  console.log(`📸 Posting to Tumblr...${dryRun ? ' (dry run)' : ''}\n`);
-
-  try {
-    const response = await postPhoto({
-      imagePath: args.image,
-      blog,
-      caption: args.caption || '',
-      tags,
-      altText: args.altText,
-      dryRun,
-    });
-
-    if (dryRun) {
-      console.log('\n✅ Dry run complete — no post created.');
-      return;
-    }
-
-    console.log('\n✅ Posted successfully!');
-    console.log(`   Post ID: ${response.id || '(unknown)'}`);
-    if (response.url) {
-      console.log(`   URL: ${response.url}`);
-    }
-  } catch (error) {
-    console.error('\n❌ Post failed:', error.message);
-    process.exit(1);
-  }
-}
+// ─── Help ───────────────────────────────────────────────────────────
 
 function cmdHelp() {
   console.log(`
-📸 Tumblr Poster CLI — Post images to Tumblr
+📸 Tumblr Poster CLI — Full NPF Support
 
 Usage:
   node index.mjs <command> [options]
 
 Commands:
-  post        Post an image to a Tumblr blog
-  auth        Authentication commands
-  blogs       List your Tumblr blogs
-  help        Show this help message
+  post photo   Post an image
+  post text    Post a text article
+  post link    Post a link
+  post quote   Post a quote
+  auth --check Verify credentials
+  blogs        List your Tumblr blogs
+  help         Show this help
 
-Post Options:
-  --image <path>       Path to image file (PNG/JPG/GIF/WEBP) [required]
-  --caption <text>     Post caption (supports markdown)
-  --tags <t1,t2,...>   Comma-separated tags
-  --blog <name>        Target blog name (default: TUMBLR_DEFAULT_BLOG)
-  --alt-text <text>    Image alt text for accessibility
-  --dry-run            Validate without posting
+Photo Options:
+  --image <path>        Image file path [required]
+  --caption <text>      Caption (text block above image)
+  --image-caption <t>   Native NPF image caption (below image, max 4096)
+  --alt-text <text>     Image alt text (accessibility)
+  --blog <name>         Target blog (or set TUMBLR_DEFAULT_BLOG)
 
-Auth Options:
-  --check              Verify credentials are valid
+Text Options:
+  --title <text>        Article title (rendered as heading)
+  --body <text>         Article body [required] (split paragraphs with \\n\\n)
+
+Link Options:
+  --url <url>           Link URL [required]
+  --title <text>        Link title (max 140 chars, auto-fetched if omitted)
+  --description <text>  Link description (max 140 chars)
+  --caption <text>      Caption text above the link
+
+Quote Options:
+  --quote <text>        The quote [required]
+  --source <text>       Attribution (e.g. "Albert Einstein")
+
+Common Options (all post types):
+  --tags <t1,t2,...>    Comma-separated tags
+  --state <state>       published | queue | draft | private (default: published)
+  --publish-on <iso>    Schedule date (ISO 8601, requires --state queue)
+  --slug <text>         Custom URL slug
+  --source-url <url>    Source attribution URL
+  --dry-run             Validate without posting
 
 Examples:
-  node index.mjs auth --check
-  node index.mjs blogs
-  node index.mjs post --image ./quote.png --caption "Stay hungry" --tags quotes,daily
-  node index.mjs post --image ./quote.png --blog my-blog --dry-run
+  # Photo post
+  node index.mjs post photo --image ./quote.png --caption "Stay hungry" --tags quotes,daily
+
+  # Text article
+  node index.mjs post text --title "My Thoughts" --body "Paragraph 1\\n\\nParagraph 2"
+
+  # Link post
+  node index.mjs post link --url https://example.com --title "Cool Site"
+
+  # Quote post
+  node index.mjs post quote --quote "Less is more" --source "Mies van der Rohe"
+
+  # Schedule a post
+  node index.mjs post photo --image ./quote.png --state queue --publish-on "2026-06-20T10:00:00Z"
   `);
 }
 
@@ -195,29 +313,57 @@ Examples:
 
 const args = parseArgs(process.argv.slice(2));
 const command = args._[0] || 'help';
+const subcommand = args._[1];
 
-switch (command) {
-  case 'post':
-    await cmdPost(args);
-    break;
-  case 'auth':
-    if (args.check) {
-      await cmdAuthCheck();
-    } else {
-      console.error('Unknown auth subcommand. Use: auth --check');
+try {
+  switch (command) {
+    case 'post':
+      switch (subcommand) {
+        case 'photo':
+          await cmdPostPhoto(args);
+          break;
+        case 'text':
+          await cmdPostText(args);
+          break;
+        case 'link':
+          await cmdPostLink(args);
+          break;
+        case 'quote':
+          await cmdPostQuote(args);
+          break;
+        default:
+          console.error(`Unknown post type: ${subcommand || '(missing)'}`);
+          console.error('Available: photo, text, link, quote');
+          console.error('Example: node index.mjs post photo --image ./img.png');
+          process.exit(1);
+      }
+      break;
+
+    case 'auth':
+      if (args.check) {
+        await cmdAuthCheck();
+      } else {
+        console.error('Use: node index.mjs auth --check');
+        process.exit(1);
+      }
+      break;
+
+    case 'blogs':
+      await cmdBlogs();
+      break;
+
+    case 'help':
+    case '--help':
+    case '-h':
+      cmdHelp();
+      break;
+
+    default:
+      console.error(`Unknown command: ${command}`);
+      cmdHelp();
       process.exit(1);
-    }
-    break;
-  case 'blogs':
-    await cmdBlogs();
-    break;
-  case 'help':
-  case '--help':
-  case '-h':
-    cmdHelp();
-    break;
-  default:
-    console.error(`Unknown command: ${command}`);
-    cmdHelp();
-    process.exit(1);
+  }
+} catch (error) {
+  console.error(`\n❌ Error: ${error.message}`);
+  process.exit(1);
 }

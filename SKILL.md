@@ -1,20 +1,20 @@
 ---
 name: tumblr-poster
-description: Post images to Tumblr via CLI using the official Tumblr API. Part of the Naaza content generation pipeline — takes images from quotes-maker and posts them to a Tumblr blog.
-version: 1.0.0
+description: Post content to Tumblr via CLI using the official Tumblr API. Supports photo posts, text articles, links, and quotes. Part of the Naaza content generation pipeline.
+version: 2.0.0
 author: The Aetheris
 ---
 
 # 📸 Tumblr Poster — Agent Skill Guide
 
-> **Purpose:** This guide teaches AI agents (like Naaza) how to post images to Tumblr using the `tumblr-poster` CLI tool.
+> **Purpose:** This guide teaches AI agents (like Naaza) how to post content to Tumblr using the `tumblr-poster` CLI tool.
 
 ## What This Tool Does
 
-Takes an image file + caption + tags → posts it to a Tumblr blog via the official Tumblr API.
+Takes content (image, text, link, or quote) + metadata → posts it to a Tumblr blog via the official Tumblr API using NPF (Neue Post Format).
 
 ```
-Image file → tumblr-poster → Live post on Tumblr
+Content + metadata → tumblr-poster → Live post on Tumblr
 ```
 
 ## Location
@@ -23,103 +23,154 @@ Image file → tumblr-poster → Live post on Tumblr
 ~/development/tumblr-poster/
 ```
 
-## Prerequisites
+## Quick Reference
 
-1. **Node.js >= 18** installed
-2. **`.env` file** at `~/development/tumblr-poster/.env` with valid Tumblr OAuth credentials
-3. **Image file** ready to post (PNG, JPG, GIF, or WEBP)
+All commands run from `~/development/tumblr-poster/`. Use `--blog xenna-aetheris` or set `TUMBLR_DEFAULT_BLOG` in `.env`.
 
-## Commands
-
-### 1. Post an Image
-
-This is the main command. Posts an image to Tumblr.
+### Post a Photo (Main Use Case — Naaza Pipeline)
 
 ```bash
-cd ~/development/tumblr-poster
-
-node index.mjs post \
+node index.mjs post photo \
   --image <PATH_TO_IMAGE> \
   --caption "<CAPTION_TEXT>" \
   --tags "<comma,separated,tags>" \
-  --blog <BLOG_NAME>
+  --blog xenna-aetheris \
+  --alt-text "<accessibility description>"
 ```
 
-**Required flags:**
-
-| Flag | Description | Example |
-|------|-------------|---------|
-| `--image` | Path to the image file | `../quotes-maker/output/quote-001.png` |
-| `--blog` | Target Tumblr blog name | `xenna-aetheris` |
-
-**Optional flags:**
-
-| Flag | Description | Default |
-|------|-------------|---------|
-| `--caption` | Text caption for the post | *(empty)* |
-| `--tags` | Comma-separated tags | *(none)* |
-| `--alt-text` | Accessibility description of image | *(none)* |
-| `--dry-run` | Test without actually posting | `false` |
-
-#### Example: Post a quote image
-
+**Example:**
 ```bash
-node index.mjs post \
+node index.mjs post photo \
   --image ../quotes-maker/output/quote-001.png \
   --caption "Stay hungry, stay foolish — Steve Jobs" \
-  --tags "quotes,motivation,daily,steve-jobs" \
+  --tags "quotes,motivation,daily" \
   --blog xenna-aetheris \
   --alt-text "Quote: Stay hungry, stay foolish"
 ```
 
-**Output on success:**
-
-```
-📸 Posting to Tumblr...
-
-✅ Posted successfully!
-   Post ID: 819602117598789632
-```
-
-### 2. Check Auth Status
-
-Verify credentials are valid:
+### Post a Text Article
 
 ```bash
+node index.mjs post text \
+  --title "Article Title" \
+  --body "First paragraph.
+
+Second paragraph." \
+  --tags "articles,writing" \
+  --blog xenna-aetheris
+```
+
+Separate paragraphs with `\n\n` (double newline).
+
+### Post a Link
+
+```bash
+node index.mjs post link \
+  --url https://example.com \
+  --title "Link Title" \
+  --description "Short description" \
+  --tags "links,interesting" \
+  --blog xenna-aetheris
+```
+
+If `--title` and `--description` are omitted, Tumblr auto-fetches them from the URL.
+
+### Post a Quote
+
+```bash
+node index.mjs post quote \
+  --quote "Simplicity is the ultimate sophistication." \
+  --source "Leonardo da Vinci" \
+  --tags "quotes,wisdom" \
+  --blog xenna-aetheris
+```
+
+### Other Commands
+
+```bash
+# Check if credentials are valid
 node index.mjs auth --check
+
+# List available blogs
+node index.mjs blogs
+
+# Show help
+node index.mjs help
 ```
 
-### 3. List Available Blogs
+## All Flags Reference
 
-See which Tumblr blogs you can post to:
+### Photo Post (`post photo`)
+
+| Flag | Required | Description |
+|------|----------|-------------|
+| `--image <path>` | ✅ | Path to image (PNG/JPG/GIF/WEBP) |
+| `--caption <text>` | — | Caption text (rendered above image) |
+| `--image-caption <text>` | — | Native NPF caption (below image, max 4096) |
+| `--alt-text <text>` | — | Accessibility description |
+| `--blog <name>` | ✅* | Target blog (*or set TUMBLR_DEFAULT_BLOG) |
+
+### Text Post (`post text`)
+
+| Flag | Required | Description |
+|------|----------|-------------|
+| `--body <text>` | ✅ | Article body (paragraphs split by `\n\n`) |
+| `--title <text>` | — | Article title (rendered as heading) |
+| `--blog <name>` | ✅* | Target blog |
+
+### Link Post (`post link`)
+
+| Flag | Required | Description |
+|------|----------|-------------|
+| `--url <url>` | ✅ | Link URL |
+| `--title <text>` | — | Link title (max 140 chars, auto-fetched if omitted) |
+| `--description <text>` | — | Link description (max 140 chars) |
+| `--caption <text>` | — | Caption above the link |
+| `--blog <name>` | ✅* | Target blog |
+
+### Quote Post (`post quote`)
+
+| Flag | Required | Description |
+|------|----------|-------------|
+| `--quote <text>` | ✅ | The quote text |
+| `--source <text>` | — | Attribution (e.g. "Albert Einstein") |
+| `--blog <name>` | ✅* | Target blog |
+
+### Common Flags (All Post Types)
+
+| Flag | Description | Default |
+|------|-------------|---------|
+| `--tags <t1,t2,...>` | Comma-separated tags | *(none)* |
+| `--state <state>` | `published` \| `queue` \| `draft` \| `private` | `published` |
+| `--publish-on <iso>` | Schedule date (ISO 8601, requires `--state queue`) | *(none)* |
+| `--slug <text>` | Custom URL slug | *(auto)* |
+| `--source-url <url>` | Source attribution URL | *(none)* |
+| `--dry-run` | Validate without posting | `false` |
+
+## Scheduling & States
 
 ```bash
-node index.mjs blogs
+# Add to queue
+node index.mjs post photo --image ./img.png --state queue --blog xenna-aetheris
+
+# Schedule for specific time (requires --state queue)
+node index.mjs post photo --image ./img.png --state queue \
+  --publish-on "2026-06-20T10:00:00Z" --blog xenna-aetheris
+
+# Save as draft
+node index.mjs post text --body "Work in progress" --state draft --blog xenna-aetheris
+
+# Private post
+node index.mjs post photo --image ./img.png --state private --blog xenna-aetheris
 ```
 
-## Important Notes
+## Testing Before Posting
 
-### Before Posting
+Always use `--dry-run` first if unsure:
 
-- **Always test with `--dry-run` first** if you're unsure:
-  ```bash
-  node index.mjs post --image ./image.png --blog xenna-aetheris --dry-run
-  ```
-- Verify the image file exists and is not empty
-- Keep captions concise — Tumblr captions can be long but shorter is better for engagement
-- Use relevant tags (5-10 is ideal for Tumblr)
-
-### Image Requirements
-
-- **Formats:** PNG, JPG, GIF, WEBP
-- **Size:** Keep under 10MB (Tumblr's limit)
-- **Recommended:** 1080×1080 (square) or 1080×1350 (portrait) for best display
-
-### Tags Best Practices
-
-- Separate with commas: `--tags "quotes,motivation,daily"`
-- 5-10 tags per post is the sweet spot
-- Mix popular tags (#quotes, #art) with specific ones (#steve-jobs-quotes)
+```bash
+node index.mjs post photo --image ./img.png --blog xenna-aetheris --dry-run
+```
 
 ## Troubleshooting
 
@@ -127,48 +178,34 @@ node index.mjs blogs
 |-------|-----|
 | `Missing Tumblr credentials` | `.env` file missing or incomplete. Check `.env.example` |
 | `Authentication failed` | OAuth tokens expired. Re-generate at https://www.tumblr.com/oauth/apps → Explore API |
-| `Image not found` | Check the file path — use absolute paths if relative doesn't work |
+| `Image not found` | Check file path — use absolute paths if relative doesn't work |
 | `Unsupported image format` | Use PNG, JPG, GIF, or WEBP only |
+| `No blog specified` | Use `--blog <name>` or set `TUMBLR_DEFAULT_BLOG` in `.env` |
 
-## Pipeline Integration (Naaza Workflow)
+## Naaza Pipeline Integration
 
 ```
 Step 1: quotes-maker generates image
     ↓
-    output: ~/development/quotes-maker/output/quote-XXX.png
+    ~/development/quotes-maker/output/quote-XXX.png
 
 Step 2: tumblr-poster posts to Tumblr
     ↓
     cd ~/development/tumblr-poster
-    node index.mjs post --image ../quotes-maker/output/quote-XXX.png \
+    node index.mjs post photo \
+      --image ../quotes-maker/output/quote-XXX.png \
       --caption "..." --tags "..." --blog xenna-aetheris
 
-Step 3: Confirm success
-    ↓
-    Post live on Tumblr ✅
+Step 3: Confirm success ✅
 ```
 
-## Environment Variables
+## Tech Details
 
-The `.env` file (gitignored, never committed) contains:
-
-```env
-TUMBLR_CONSUMER_KEY=...
-TUMBLR_CONSUMER_SECRET=...
-TUMBLR_TOKEN=...
-TUMBLR_TOKEN_SECRET=...
-TUMBLR_DEFAULT_BLOG=xenna-aetheris   # optional, avoids --blog flag
-```
-
-If `TUMBLR_DEFAULT_BLOG` is set, you can omit `--blog` from the post command.
-
-## Tech Details (For Developers)
-
-- **Runtime:** Node.js ESM (`"type": "module"`)
+- **Runtime:** Node.js ESM (`"type": "module"`) >= 18
 - **API Library:** `tumblr.js` v5.0.1 (official, by Tumblr)
-- **Auth:** OAuth 1.0a (4 keys: consumer key/secret + token/secret)
-- **Post Format:** NPF (Neue Post Format) — Tumblr's modern post API
-- **Source:** `~/development/tumblr-poster/`
+- **Post Format:** NPF (Neue Post Format) — Tumblr's modern content blocks
+- **Auth:** OAuth 1.0a (consumer key/secret + token/secret)
+- **Rate Limits:** 250 posts/day, 250 images/day, 1000 queue limit per blog
 
 ---
 
